@@ -67,9 +67,14 @@ mkdir build_sdrpp
 cd build_sdrpp
 
 # Configure with CMake
+
+# Basic configuration
 cmake -B . -S .. -DCMAKE_TOOLCHAIN_FILE=C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
 
 # Build the project
+
+# If you needed to use explicit package paths in the configure step,
+# the build command remains the same
 cmake --build . --config Release
 ```
 
@@ -92,7 +97,7 @@ xcopy /s /y root build_sdrpp\Release\
 Copy-Item C:\volk\bin\volk.dll build_sdrpp\Release\
 ```
 
-2. Create a basic configuration file (config.json):
+1. Create a basic configuration file (config.json):
 
 ```json
 {
@@ -141,7 +146,7 @@ The Python bindings in SDR++ use SWIG to generate Python wrappers for the C++ co
 1. **nlohmann::json Issue**:  
    The main challenge with the Python bindings is handling the nlohmann::json library through SWIG.
 
-2. **Approach 1: Disable JSON in SWIG Interface**:  
+1. **Approach 1: Disable JSON in SWIG Interface**:
    Modify the SWIG interface files to avoid direct exposure of nlohmann::json objects:
 
    ```cpp
@@ -155,10 +160,10 @@ The Python bindings in SDR++ use SWIG to generate Python wrappers for the C++ co
    // Provide string-only methods for SWIG
    ```
 
-3. **Approach 2: Use Python's JSON Module**:
+2. **Approach 2: Use Python's JSON Module**:
    Create a typemap that converts between nlohmann::json and Python's native JSON objects.
 
-4. **Approach 3: Simplified Implementation**:
+3. **Approach 3: Simplified Implementation**:
    Create a simplified Python binding layer that focuses only on the most essential functionality and avoids complex C++ features like templated classes and modern C++ features that SWIG struggles with.
 
 ### Building Python Bindings
@@ -175,13 +180,13 @@ add_subdirectory("python_swig_bindings")
 endif (OPT_BUILD_PYTHON_BINDINGS)
 ```
 
-2. Configure CMake with Python development components found:
+1. Configure CMake with Python development components found:
 
 ```bash
 cmake -B build_sdrpp -S . -DCMAKE_TOOLCHAIN_FILE=C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
 ```
 
-3. Build the project with Python bindings enabled:
+2. Build the project with Python bindings enabled:
 
 ```bash
 cmake --build build_sdrpp --config Release
@@ -196,6 +201,23 @@ cmake --build build_sdrpp --config Release
 3. **JSON Parsing Issues in Python Bindings**: Consider using string-based interfaces instead of direct nlohmann::json objects in SWIG interfaces.
 
 4. **Module Loading Failures**: Check that modules are correctly built and placed in the 'modules' directory relative to the executable.
+
+5. **CMake Can't Find vcpkg Packages**: On Windows, CMake might fail to find packages installed via vcpkg despite using the toolchain file. If you encounter errors like `Could not find a package configuration file provided by "glfw3"`, try explicitly setting the package configuration paths:
+
+   ```bash
+   # Full configuration command with explicit package paths
+   cmake -B . -S .. \
+       -DCMAKE_TOOLCHAIN_FILE=C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake \
+       -DCMAKE_POLICY_VERSION_MINIMUM="3.5" \
+       -DVOLK_ROOT=C:/volk \
+       -Dglfw3_DIR=C:/dev/vcpkg/installed/x64-windows/share/glfw3 \
+       -DFFTW3f_DIR=C:/dev/vcpkg/installed/x64-windows/share/fftw3f \
+       -Dzstd_DIR=C:/dev/vcpkg/installed/x64-windows/share/zstd
+   ```
+   
+   The package configuration files are typically located in subdirectories of `C:/dev/vcpkg/installed/x64-windows/share/`.
+   
+   You can verify the existence of these files with: `dir "C:\dev\vcpkg\installed\x64-windows\share\glfw3"`.
 
 ## Alternative Approaches for Python Integration
 
