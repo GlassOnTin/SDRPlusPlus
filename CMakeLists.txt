@@ -29,7 +29,7 @@ option(OPT_BUILD_RFSPACE_SOURCE "Build RFspace Source Module (no dependencies re
 option(OPT_BUILD_RTL_SDR_SOURCE "Build RTL-SDR Source Module (Dependencies: librtlsdr)" ON)
 option(OPT_BUILD_RTL_TCP_SOURCE "Build RTL-TCP Source Module (no dependencies required)" ON)
 option(OPT_BUILD_SDRPP_SERVER_SOURCE "Build SDR++ Server Source Module (no dependencies required)" ON)
-option(OPT_BUILD_SDRPLAY_SOURCE "Build SDRplay Source Module (Dependencies: libsdrplay)" OFF)
+option(OPT_BUILD_SDRPLAY_SOURCE "Build SDRplay Source Module (Dependencies: libsdrplay)" ON)
 option(OPT_BUILD_SOAPY_SOURCE "Build SoapySDR Source Module (Dependencies: soapysdr)" OFF)
 option(OPT_BUILD_SPECTRAN_SOURCE "Build Spectran Source Module (Dependencies: Aaronia RTSA Suite)" OFF)
 option(OPT_BUILD_SPECTRAN_HTTP_SOURCE "Build Spectran HTTP Source Module (no dependencies required)" ON)
@@ -346,7 +346,24 @@ target_compile_options(sdrpp PRIVATE ${SDRPP_COMPILER_FLAGS})
 # Copy dynamic libs over
 if (MSVC)
     add_custom_target(do_always ALL xcopy /s \"$<TARGET_FILE_DIR:sdrpp_core>\\*.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
-    add_custom_target(do_always_volk ALL xcopy /s \"C:/Program Files/PothosSDR/bin\\volk.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
+    
+    # Handle VOLK DLL copying
+    if(TARGET volk::volk)
+        # When using vcpkg, the DLL should already be in the output directory
+        message(STATUS "Using vcpkg VOLK - no need to manually copy DLL")
+    else()
+        # When using manual VOLK installation, copy the DLL
+        if(NOT DEFINED VOLK_ROOT)
+            set(VOLK_ROOT "C:/volk" CACHE PATH "Path to VOLK installation")
+        endif()
+        
+        if(EXISTS "${VOLK_ROOT}/bin/volk.dll")
+            message(STATUS "Will copy VOLK DLL from: ${VOLK_ROOT}/bin/volk.dll")
+            add_custom_target(do_always_volk ALL xcopy /s \"${VOLK_ROOT}/bin\\volk.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
+        else()
+            message(WARNING "VOLK DLL not found at ${VOLK_ROOT}/bin/volk.dll - will not copy")
+        endif()
+    endif()
 
     if (COPY_MSVC_REDISTRIBUTABLES)
         # Get the list of Visual C++ runtime DLLs
@@ -403,5 +420,11 @@ endif ()
 # Create uninstall target
 configure_file(${CMAKE_SOURCE_DIR}/cmake_uninstall.cmake ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake @ONLY)
 add_custom_target(uninstall ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+# Python SWIG bindings
+option(OPT_BUILD_PYTHON_BINDINGS "Build Python SWIG bindings" OFF)
+if (OPT_BUILD_PYTHON_BINDINGS)
+add_subdirectory("python_swig_bindings")
+endif (OPT_BUILD_PYTHON_BINDINGS)
 
 # Create headers target

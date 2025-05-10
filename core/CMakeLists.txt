@@ -31,7 +31,27 @@ endif (OPT_BACKEND_ANDROID)
 add_library(sdrpp_core SHARED ${SRC} ${BACKEND_SRC})
 
 # Set compiler options
-target_compile_options(sdrpp_core PRIVATE ${SDRPP_COMPILER_FLAGS})
+if (MSVC)
+    target_compile_options(sdrpp_core PRIVATE
+        $<$<CONFIG:Debug>:/Zi /Od /RTC1 /EHsc /std:c++17 /FS>
+        $<$<CONFIG:Release>:/O2 /Ob2 /std:c++17 /EHsc /FS>
+        $<$<CONFIG:RelWithDebInfo>:/Zi /O2 /Ob1 /EHsc /std:c++17 /DNDEBUG /FS>
+        $<$<CONFIG:MinSizeRel>:/Os /Ob1 /EHsc /std:c++17 /DNDEBUG /FS>
+    )
+    set_target_properties(sdrpp_core PROPERTIES
+        COMPILE_PDB_NAME_DEBUG "sdrpp_core_d"
+        COMPILE_PDB_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/core/${CMAKE_CFG_INTDIR}"
+        COMPILE_PDB_NAME_RELEASE "sdrpp_core"
+        COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/core/${CMAKE_CFG_INTDIR}"
+        COMPILE_PDB_NAME_RELWITHDEBINFO "sdrpp_core_rdi"
+        COMPILE_PDB_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}/core/${CMAKE_CFG_INTDIR}"
+        COMPILE_PDB_NAME_MINSIZEREL "sdrpp_core_msr"
+        COMPILE_PDB_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}/core/${CMAKE_CFG_INTDIR}"
+    )
+    message(STATUS "MSVC: Set /FS compile option, custom PDB names, and PDB output directories for sdrpp_core.")
+else()
+    target_compile_options(sdrpp_core PRIVATE ${SDRPP_COMPILER_FLAGS})
+endif()
 
 # Set the install prefix
 target_compile_definitions(sdrpp_core PUBLIC INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")
@@ -75,13 +95,49 @@ endif (OPT_OVERRIDE_STD_FILESYSTEM)
 
 if (MSVC)
     # Lib path
-    target_link_directories(sdrpp_core PUBLIC "C:/Program Files/PothosSDR/lib/")
+    # target_link_directories(sdrpp_core PUBLIC "C:/Program Files/PothosSDR/lib/") # Prefer vcpkg
 
     # Misc headers
-    target_include_directories(sdrpp_core PUBLIC "C:/Program Files/PothosSDR/include/")
+    # target_include_directories(sdrpp_core PUBLIC "C:/Program Files/PothosSDR/include/") # Prefer vcpkg
 
-    # Volk
-    target_link_libraries(sdrpp_core PUBLIC volk)
+    # VOLK (Vector-Optimized Library of Kernels)
+    # First try vcpkg's volk CONFIG mode
+    find_package(volk CONFIG QUIET)
+    if(TARGET volk::volk)
+        message(STATUS "Found VOLK via vcpkg's volk::volk target")
+        target_link_libraries(sdrpp_core PUBLIC volk::volk)
+    else()
+        # Fallback to manual VOLK installation
+        # Note: This requires GNURadio's VOLK library, not Vulkan's VOLK meta-loader
+        # See PYTHON_BINDING.md for more information
+        
+        # Check for custom VOLK installation path via CMake variable
+        if(NOT DEFINED VOLK_ROOT)
+            # Default location - can be overridden via -DVOLK_ROOT=path
+            set(VOLK_ROOT "C:/volk" CACHE PATH "Path to VOLK installation")
+        endif()
+        
+        set(VOLK_INCLUDE_DIR "${VOLK_ROOT}/include")
+        if(WIN32)
+            set(VOLK_LIBRARY "${VOLK_ROOT}/lib/volk.lib")
+        else()
+            set(VOLK_LIBRARY "${VOLK_ROOT}/lib/libvolk.so")
+        endif()
+        
+        # Check if the VOLK installation exists
+        if(EXISTS "${VOLK_INCLUDE_DIR}/volk/volk.h")
+            message(STATUS "Found VOLK include at: ${VOLK_INCLUDE_DIR}")
+            if(EXISTS "${VOLK_LIBRARY}")
+                message(STATUS "Found VOLK library at: ${VOLK_LIBRARY}")
+                target_include_directories(sdrpp_core PUBLIC "${VOLK_INCLUDE_DIR}")
+                target_link_libraries(sdrpp_core PUBLIC "${VOLK_LIBRARY}")
+            else()
+                message(FATAL_ERROR "SDR++ requires the VOLK library. Cannot find VOLK library at ${VOLK_LIBRARY}. Please build and install VOLK from https://github.com/gnuradio/volk or specify VOLK_ROOT.")
+            endif()
+        else()
+            message(FATAL_ERROR "SDR++ requires the VOLK library. Cannot find VOLK headers at ${VOLK_INCLUDE_DIR}/volk/volk.h. Please build and install VOLK from https://github.com/gnuradio/volk or specify VOLK_ROOT.")
+        endif()
+    endif()
 
     # OpenGL
     find_package(OpenGL REQUIRED)
